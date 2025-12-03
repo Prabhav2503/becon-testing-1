@@ -116,6 +116,7 @@ app.post("/signup", async (req, res) => {
   const body = req.body;
   try {
     const createuser = await userdata.create(body);
+    console.log(createuser);
     const token = generateToken(body);
     res.cookie("token", token);
     res

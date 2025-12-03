@@ -1,187 +1,201 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import axios from "axios";
+
+axios.defaults.withCredentials = true; // to send cookies
 
 function App() {
-  const url = "http://localhost:3000/";
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [friends, setFriends] = useState([]);  
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [friendName, setFriendName] = useState("");
-
-  // ------------------------------------
-  // 🔥 CHECK COOKIE ON PAGE LOAD
-  // ------------------------------------
-  useEffect(() => {
-    fetch(`${url}users/`, {
-      method: "GET",
-      credentials: "include"
-    })
-      .then(async (res) => {
-        if (res.status === 401) {
-          setIsLoggedIn(false);
-          return;
-        }
-
-        const data = await res.json();
-        setFriends(data);
-        setIsLoggedIn(true);
-      })
-      .catch((err) => console.error("Error:", err));
-  }, []);
-
-  // ------------------------------------
-  // 🔥 LOGIN → if fails → SIGNUP
-  // ------------------------------------
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // FIRST try login
-    const loginRes = await fetch(`${url}login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ username, password }),
-    });
-
-    if (loginRes.status === 404) {
-      // User not found → SIGNUP
-      console.log("User not found → creating account");
-
-      const signupRes = await fetch(`${url}signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ username, password }),
-      });
-
-      const signupData = await signupRes.json();
-      console.log("Signup success:", signupData);
-
-      setIsLoggedIn(true);
-
-      // Load initial empty friend list
-      setFriends([]);
-      return;
-    }
-
-    // LOGIN SUCCESS
-    const data = await loginRes.json();
-    console.log("Login success:", data);
-
-    setFriends(data.friends || []);
-    setIsLoggedIn(true);
-  };
-
-  // ------------------------------------
-  // 🔥 ADD FRIEND
-  // ------------------------------------
-  const handleAddFriend = async (e) => {
-    e.preventDefault();
-
-    const res = await fetch(`${url}users/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ friend_name: friendName }),
-    });
-
-    const data = await res.json();
-    console.log("Created:", data);
-
-    // Reload friend list
-    const refreshed = await fetch(`${url}users/`, {
-      method: "GET",
-      credentials: "include",
-    });
-    const refreshedFriends = await refreshed.json();
-    setFriends(refreshedFriends);
-
-    setFriendName("");
-  };
-
-const handleLogout = async () => {
-  await fetch("http://localhost:3000/logout", {
-    method: "POST",
-    credentials: "include"
+  const [form, setForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+    otp: "",
   });
+  const [step, setStep] = useState("signup"); // signup, verifySignup, login, verifyLogin
+  const [message, setMessage] = useState("");
 
-  setFriends([]);
-  setIsLoggedIn(false);
-};
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-  // ------------------------------------
-  // UI
-  // ------------------------------------
+  const handleSignup = async () => {
+    try {
+      const res = await axios.post("http://localhost:5000/api/signup", {
+        email: form.email,
+      });
+      setMessage(res.data.message);
+      setStep("verifySignup");
+    } catch (err) {
+      setMessage(err.response?.data?.message || err.message);
+    }
+  };
+
+  const handleVerifySignup = async () => {
+    try {
+      const res = await axios.post("http://localhost:5000/api/verify-signup", {
+        username: form.username,
+        email: form.email,
+        password: form.password,
+        otp: form.otp,
+      });
+      setMessage(res.data.message);
+      setStep("login");
+    } catch (err) {
+      setMessage(err.response?.data?.message || err.message);
+    }
+  };
+
+  const handleLogin = async () => {
+    try {
+      const res = await axios.post("http://localhost:5000/api/login", {
+        email: form.email,
+        password: form.password,
+      });
+      setMessage(res.data.message);
+      setStep("verifyLogin");
+    } catch (err) {
+      setMessage(err.response?.data?.error || err.message);
+    }
+  };
+
+  const handleVerifyLogin = async () => {
+    try {
+      const res = await axios.post("http://localhost:5000/api/verify-login", {
+        email: form.email,
+        otp: form.otp,
+      });
+      setMessage(res.data.message);
+      setStep("loggedIn");
+    } catch (err) {
+      setMessage(err.response?.data?.message || err.message);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const res = await axios.post("http://localhost:5000/api/logout");
+      setMessage(res.data.message);
+      setStep("signup");
+      setForm({ username: "", email: "", password: "", otp: "" });
+    } catch (err) {
+      setMessage(err.response?.data?.message || err.message);
+    }
+  };
+
   return (
-    <div className="flex items-center justify-center w-full h-screen bg-[#262626]">
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white p-6 rounded shadow">
+        <h1 className="text-2xl font-bold mb-4 text-center">Auth Test App</h1>
+        {message && <p className="mb-4 text-center text-red-500">{message}</p>}
 
-      {/* ----------------------- LOGIN / SIGNUP PAGE ----------------------- */}
-      {!isLoggedIn && (
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white p-6 rounded-lg shadow-md w-96"
-        >
-          <h2 className="text-2xl font-semibold mb-4 text-center">
-            Login / Signup
-          </h2>
+        {step === "signup" && (
+          <>
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={form.email}
+              onChange={handleChange}
+              className="w-full p-2 border rounded mb-2"
+            />
+            <button
+              onClick={handleSignup}
+              className="w-full bg-blue-500 text-white p-2 rounded"
+            >
+              Send OTP
+            </button>
+          </>
+        )}
 
-          <label className="block mb-2 font-medium">Username</label>
-          <input
-            type="text"
-            className="w-full p-2 mb-4 border rounded"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
-
-          <label className="block mb-2 font-medium">Password</label>
-          <input
-            type="password"
-            className="w-full p-2 mb-4 border rounded"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-
-          <button className="w-full bg-blue-500 text-white py-2 rounded">
-            Submit
-          </button>
-        </form>
-      )}
-
-      {/* ----------------------- DASHBOARD ----------------------- */}
-      {isLoggedIn && (
-        <div className="bg-white p-6 rounded-lg shadow-md w-96">
-          <h1 className="text-xl font-bold mb-4">Your Friends</h1>
-
-          <ul className="mb-4">
-            {friends.map((f, index) => (
-              <li key={index} className="text-black">
-                {f.friend_name}
-              </li>
-            ))}
-          </ul>
-
-          <form onSubmit={handleAddFriend}>
+        {step === "verifySignup" && (
+          <>
             <input
               type="text"
-              className="w-full p-2 mb-2 border rounded"
-              placeholder="Friend name"
-              value={friendName}
-              onChange={(e) => setFriendName(e.target.value)}
-              required
+              name="username"
+              placeholder="Username"
+              value={form.username}
+              onChange={handleChange}
+              className="w-full p-2 border rounded mb-2"
             />
-            <button className="w-full bg-green-500 text-white py-2 rounded">
-              Add Friend
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={form.password}
+              onChange={handleChange}
+              className="w-full p-2 border rounded mb-2"
+            />
+            <input
+              type="text"
+              name="otp"
+              placeholder="OTP"
+              value={form.otp}
+              onChange={handleChange}
+              className="w-full p-2 border rounded mb-2"
+            />
+            <button
+              onClick={handleVerifySignup}
+              className="w-full bg-green-500 text-white p-2 rounded"
+            >
+              Verify & Register
             </button>
-          </form>
+          </>
+        )}
 
-          <button onClick={handleLogout} className="bg-red-500 text-white p-2 rounded">
-  Logout
-</button>
+        {step === "login" && (
+          <>
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={form.email}
+              onChange={handleChange}
+              className="w-full p-2 border rounded mb-2"
+            />
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={form.password}
+              onChange={handleChange}
+              className="w-full p-2 border rounded mb-2"
+            />
+            <button
+              onClick={handleLogin}
+              className="w-full bg-blue-500 text-white p-2 rounded"
+            >
+              Login
+            </button>
+          </>
+        )}
 
-        </div>
-      )}
+        {step === "verifyLogin" && (
+          <>
+            <input
+              type="text"
+              name="otp"
+              placeholder="OTP"
+              value={form.otp}
+              onChange={handleChange}
+              className="w-full p-2 border rounded mb-2"
+            />
+            <button
+              onClick={handleVerifyLogin}
+              className="w-full bg-green-500 text-white p-2 rounded"
+            >
+              Verify OTP
+            </button>
+          </>
+        )}
+
+        {step === "loggedIn" && (
+          <button
+            onClick={handleLogout}
+            className="w-full bg-red-500 text-white p-2 rounded"
+          >
+            Logout
+          </button>
+        )}
+      </div>
     </div>
   );
 }
