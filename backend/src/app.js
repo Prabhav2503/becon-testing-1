@@ -1,15 +1,21 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 require("dotenv").config();
 const router=require('./routes/user.js');
 const authMiddleware = require('./middleware/authMiddleware.js');
+const {PrismaClient} = require('@prisma/client');
+const prisma = new PrismaClient();
 
-//connection to mongodb
-mongoose
-  .connect(process.env.DB_URL)
-  .then(() => console.log("connected to mongodb"))
-  .catch((err) => console.log("database connection error", err));
+async function checkconnection() {
+  try {
+    await prisma.$connect();
+    console.log("Connected to the database successfully.");
+  } catch (error) {
+    console.error("Error connecting to the database:", error);
+  }
+}
+
+checkconnection();
 
   const app = express();
 

@@ -2,17 +2,22 @@
   const {RegisterUser, LoginUser, HandleOTP} = require("../controller/user.js");
   const {generateToken} = require("../hooks/index.js");
   const router = express.Router();
-  const {OTP, User} = require("../models/user.js");
+  const {PrismaClient} = require('@prisma/client');
+const prisma = new PrismaClient();
+
 
   router.post("/signup", async (req,res) => {
-    const existing = await User.findOne({email: req.body.email});
+    const existing = await prisma.user.findUnique({
+      where: { email: req.body.email }
+    });
     if(existing){
       return  res.status(400).json({message: "User already exists"});
     }
       try{
         const {email} = req.body
         const response = await HandleOTP({email});
-      if(!response.Success){return res.status(400).json({message: "OTP generation failed", error : response.error})}
+      if(!response.Success){console.log(response.error);
+        return res.status(400).json({message: "OTP generation failed", error : response.error})}
         return res.status(201).json({message: "OTP sent successfully"});
       } catch(err) {
         return res.status(400).json({error: err.message});
@@ -22,7 +27,9 @@
   router.post("/verify-signup", async(req,res) => {
     const {username,email,password, otp} = req.body;
     try {
-      const record = await OTP.findOne({email});
+      const record = await prisma.otp.findUnique({
+  where: { email }
+});
       if(!record) {
         return res.status(400).json({message: "OTP record not found"});
       }
@@ -61,7 +68,9 @@
   router.post("/verify-login", async(req,res) => {
     const {email, otp} = req.body;
     try {
-        const record = await OTP.findOne({email})
+        const record = await prisma.otp.findUnique({
+  where: { email }
+});
         if(!record) {
             return res.status(400).json({message: "OTP record not found"});
         }
